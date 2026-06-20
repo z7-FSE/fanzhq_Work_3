@@ -118,11 +118,81 @@ def analyze_time_distribution(df):
     return boardings, hourly_counts
 
 
+def analyze_route_stops(df, route_col='线路号', stops_col='ride_stops'):
+    """
+    计算各线路乘客的平均搭乘站点数及其标准差。
+    Parameters
+    ----------
+    df : pd.DataFrame  预处理后的数据集
+    route_col : str    线路号列名
+    stops_col : str    搭乘站点数列名
+    Returns
+    -------
+    pd.DataFrame  包含列：线路号、mean_stops、std_stops，按 mean_stops 降序排列
+    """
+    route_stats = (
+        df.groupby(route_col, as_index=False)[stops_col]
+        .agg(mean_stops="mean", std_stops="std")
+        .sort_values("mean_stops", ascending=False)
+        .reset_index(drop=True)
+    )
+    # 若某条线路只有1条记录，样本标准差为 NaN，此时按 0 处理便于绘制误差棒。
+    route_stats["std_stops"] = route_stats["std_stops"].fillna(0.0)
+    return route_stats
+
+
+def plot_route_stops(boardings):
+    """打印线路统计结果，并使用 seaborn 绘制均值最高的前15条线路。"""
+    print_task_title(3, "线路站点分析")
+    route_stats = analyze_route_stops(boardings)
+    print("各线路搭乘站点数统计（前10行）：")
+    print(route_stats.head(10).to_string(index=False, float_format=lambda value: f"{value:.4f}"))
+
+    top15 = route_stats.head(15).copy()
+    top15["线路标签"] = top15["线路号"].astype(str)
+    top_route_labels = top15["线路标签"].tolist()
+    plot_records = boardings.loc[boardings["线路号"].isin(top15["线路号"])].copy()
+    plot_records["线路标签"] = plot_records["线路号"].astype(str)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    barplot_options = dict(
+        data=plot_records,
+        x="ride_stops",
+        y="线路标签",
+        order=top_route_labels,
+        estimator=np.mean,
+        capsize=0.3,
+        palette="Blues_d",
+        ax=ax,
+    )
+    try:
+        # seaborn 0.12+ 使用 errorbar='sd' 直接展示各线路的标准差。
+        sns.barplot(**barplot_options, errorbar="sd")
+    except (TypeError, AttributeError):
+        # 兼容 seaborn 0.11 及更早版本的 ci 参数写法。
+        sns.barplot(**barplot_options, ci="sd")
+
+    ax.set_title("Top 15 Routes by Average Ride Stops", fontsize=15, pad=12)
+    ax.set_xlabel("Average Number of Ride Stops")
+    ax.set_ylabel("Route")
+    ax.set_xlim(left=0)
+    ax.grid(axis="x", linestyle="--", alpha=0.3)
+    ax.grid(axis="y", visible=False)
+    fig.tight_layout()
+    output_path = PROJECT_DIR / "route_stops.png"
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    print(f"线路站点分析图已保存：{output_path}")
+    plt.show()
+    plt.close(fig)
+    return route_stats
+
+
 def main():
     """按任务顺序执行整个分析流程。"""
     sns.set_theme(style="whitegrid", context="notebook")
     df = load_and_preprocess()
-    analyze_time_distribution(df)
+    boardings, _ = analyze_time_distribution(df)
+    plot_route_stops(boardings)
 
 
 if __name__ == "__main__":
