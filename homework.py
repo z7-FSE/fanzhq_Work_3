@@ -249,6 +249,38 @@ def analyze_peak_hour_factors(boardings, hourly_counts=None):
     }
 
 
+def export_route_driver_info(boardings):
+    """将 1101~1120 线路的车辆与驾驶员对应关系分别导出为文本文件。"""
+    print_task_title(5, "线路驾驶员信息批量导出")
+    output_dir = PROJECT_DIR / "线路驾驶员信息"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    generated_paths = []
+    for route_number in range(1101, 1121):
+        route_records = boardings.loc[
+            boardings["线路号"].eq(route_number), ["车辆编号", "驾驶员编号"]
+        ]
+        # 去除重复的车辆-驾驶员组合，再按车辆和驾驶员编号升序排列。
+        unique_pairs = (
+            route_records.drop_duplicates()
+            .astype({"车辆编号": int, "驾驶员编号": int})
+            .sort_values(["车辆编号", "驾驶员编号"])
+        )
+
+        lines = [f"线路号: {route_number}"]
+        lines.extend(
+            f"{vehicle}\t{driver}"
+            for vehicle, driver in unique_pairs.itertuples(index=False, name=None)
+        )
+        file_path = output_dir / f"{route_number}.txt"
+        file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        generated_paths.append(file_path)
+        print(f"已生成：{file_path}")
+
+    print(f"共生成 {len(generated_paths)} 个线路驾驶员信息文件。")
+    return generated_paths
+
+
 def main():
     """按任务顺序执行整个分析流程。"""
     sns.set_theme(style="whitegrid", context="notebook")
@@ -256,6 +288,7 @@ def main():
     boardings, hourly_counts = analyze_time_distribution(df)
     plot_route_stops(boardings)
     analyze_peak_hour_factors(boardings, hourly_counts)
+    export_route_driver_info(boardings)
 
 
 if __name__ == "__main__":
