@@ -159,10 +159,13 @@ def plot_route_stops(boardings):
         data=plot_records,
         x="ride_stops",
         y="线路标签",
+        hue="线路标签",
         order=top_route_labels,
+        hue_order=top_route_labels,
         estimator=np.mean,
         capsize=0.3,
         palette="Blues_d",
+        legend=False,
         ax=ax,
     )
     try:
