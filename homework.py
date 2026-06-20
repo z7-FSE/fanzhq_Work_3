@@ -187,12 +187,75 @@ def plot_route_stops(boardings):
     return route_stats
 
 
+def analyze_peak_hour_factors(boardings, hourly_counts=None):
+    """自动识别高峰小时，并计算 5 分钟和 15 分钟高峰小时系数。"""
+    print_task_title(4, "高峰小时系数计算")
+
+    if hourly_counts is None:
+        # 如果没有传入任务2的结果，则使用 NumPy 按小时重新计数。
+        hourly_counts = np.bincount(boardings["hour"].to_numpy(dtype=int), minlength=24)[:24]
+
+    # argmax 返回刷卡量最大值所在的小时索引，即自动识别出高峰小时。
+    peak_hour = int(np.argmax(hourly_counts))
+    # 用高峰小时构造布尔条件，只保留该小时内的上车刷卡记录。
+    peak_records = boardings.loc[boardings["hour"].eq(peak_hour)].copy()
+    # 高峰小时刷卡量是 PHF5 和 PHF15 公式共用的分子。
+    peak_volume = int(len(peak_records))
+
+    # 将交易时间设为时间索引，才能按固定分钟窗口重采样。
+    peak_timeline = peak_records.set_index("交易时间").sort_index()
+    # 每 5 分钟聚合一次，size() 计算各时间窗口的刷卡量。
+    counts_5min = peak_timeline.resample("5min").size()
+    # idxmax() 找出刷卡量最大的5分钟窗口的起始时刻。
+    max_5_start = counts_5min.idxmax()
+    # max() 取得高峰小时内的最大5分钟刷卡量。
+    max_5_volume = int(counts_5min.max())
+    # 按题目公式：PHF5 = 高峰小时刷卡量 / (12 × 最大5分钟刷卡量)。
+    phf5 = peak_volume / (12 * max_5_volume)
+
+    # 同理以 15 分钟为时间窗口重新聚合刷卡量。
+    counts_15min = peak_timeline.resample("15min").size()
+    # 找到最大15分钟刷卡量对应的窗口起始时刻。
+    max_15_start = counts_15min.idxmax()
+    # 取出高峰小时内最大的15分钟刷卡量。
+    max_15_volume = int(counts_15min.max())
+    # 按题目公式：PHF15 = 高峰小时刷卡量 / (4 × 最大15分钟刷卡量)。
+    phf15 = peak_volume / (4 * max_15_volume)
+
+    peak_end = (peak_hour + 1) % 24
+    max_5_end = max_5_start + pd.Timedelta(minutes=5)
+    max_15_end = max_15_start + pd.Timedelta(minutes=15)
+    print(f"高峰小时：{peak_hour:02d}:00 ~ {peak_end:02d}:00，刷卡量：{peak_volume} 次")
+    print(
+        f"最大5分钟刷卡量（{max_5_start:%H:%M}~{max_5_end:%H:%M}）："
+        f"{max_5_volume} 次"
+    )
+    print(f"PHF5  = {peak_volume} / (12 × {max_5_volume}) = {phf5:.4f}")
+    print(
+        f"最大15分钟刷卡量（{max_15_start:%H:%M}~{max_15_end:%H:%M}）："
+        f"{max_15_volume} 次"
+    )
+    print(f"PHF15 = {peak_volume} / ( 4 × {max_15_volume}) = {phf15:.4f}")
+
+    return {
+        "peak_hour": peak_hour,
+        "peak_volume": peak_volume,
+        "max_5_start": max_5_start,
+        "max_5_volume": max_5_volume,
+        "phf5": phf5,
+        "max_15_start": max_15_start,
+        "max_15_volume": max_15_volume,
+        "phf15": phf15,
+    }
+
+
 def main():
     """按任务顺序执行整个分析流程。"""
     sns.set_theme(style="whitegrid", context="notebook")
     df = load_and_preprocess()
-    boardings, _ = analyze_time_distribution(df)
+    boardings, hourly_counts = analyze_time_distribution(df)
     plot_route_stops(boardings)
+    analyze_peak_hour_factors(boardings, hourly_counts)
 
 
 if __name__ == "__main__":
