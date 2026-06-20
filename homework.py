@@ -281,6 +281,91 @@ def export_route_driver_info(boardings):
     return generated_paths
 
 
+def analyze_service_performance(boardings):
+    """计算四个服务维度的 Top 10，并绘制 4×10 热力图。"""
+    print_task_title(6, "服务绩效排名与热力图")
+
+    ranking_columns = {
+        "Driver": "驾驶员编号",
+        "Route": "线路号",
+        "Boarding Station": "上车站点",
+        "Vehicle": "车辆编号",
+    }
+    rankings = {
+        dimension: boardings[column].value_counts().head(10)
+        for dimension, column in ranking_columns.items()
+    }
+
+    for dimension, ranking in rankings.items():
+        print(f"\n{dimension} Top 10：")
+        for rank, (entity, count) in enumerate(ranking.items(), start=1):
+            print(f"Top{rank:>2}  {int(entity):>6}: {int(count)} 次")
+
+    heatmap_values = np.vstack(
+        [rankings[dimension].to_numpy(dtype=int) for dimension in ranking_columns]
+    )
+    heatmap_data = pd.DataFrame(
+        heatmap_values,
+        index=list(ranking_columns.keys()),
+        columns=[f"Top{i}" for i in range(1, 11)],
+    )
+
+    fig, ax = plt.subplots(figsize=(12, 5.5))
+    sns.heatmap(
+        heatmap_data,
+        annot=True,
+        fmt="d",
+        cmap="YlOrRd",
+        linewidths=0.7,
+        linecolor="white",
+        cbar_kws={"label": "Service Trips"},
+        ax=ax,
+    )
+    ax.set_title("Top 10 Service Performance by Dimension", fontsize=15, pad=28)
+    ax.text(
+        0.5,
+        1.02,
+        "Cell values are valid boarding counts; rankings are independent across rows.",
+        transform=ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        color="#555555",
+    )
+    ax.set_xlabel("Rank")
+    ax.set_ylabel("Dimension")
+    ax.tick_params(axis="x", rotation=0)
+    ax.tick_params(axis="y", rotation=0)
+    fig.tight_layout()
+    output_path = PROJECT_DIR / "performance_heatmap.png"
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    print(f"\n服务绩效热力图已保存：{output_path}")
+    plt.show()
+    plt.close(fig)
+
+    top_driver, top_driver_count = rankings["Driver"].index[0], rankings["Driver"].iloc[0]
+    top_route, top_route_count = rankings["Route"].index[0], rankings["Route"].iloc[0]
+    tenth_route_count = rankings["Route"].iloc[-1]
+    top_station, top_station_count = (
+        rankings["Boarding Station"].index[0],
+        rankings["Boarding Station"].iloc[0],
+    )
+    top_vehicle, top_vehicle_count = rankings["Vehicle"].index[0], rankings["Vehicle"].iloc[0]
+    route_ratio = top_route_count / tenth_route_count
+    conclusion = (
+        f"热力图显示，客流在不同服务维度上并不均衡：Top1线路{int(top_route)}"
+        f"共服务{int(top_route_count)}人次，约为Top10线路的{route_ratio:.2f}倍；"
+        f"Top1司机{int(top_driver)}服务{int(top_driver_count)}人次，"
+        f"Top1上车站点{int(top_station)}有{int(top_station_count)}人次，"
+        f"Top1车辆{int(top_vehicle)}承载{int(top_vehicle_count)}人次。"
+        "线路和车辆的头部值明显高于同组后几名，说明少数核心运营对象承担了较集中的服务量，"
+        "后续排班和运力配置应重点关注这些高负荷对象。"
+    )
+    print("结论说明：")
+    print(conclusion)
+    return rankings, heatmap_data, conclusion
+
+
 def main():
     """按任务顺序执行整个分析流程。"""
     sns.set_theme(style="whitegrid", context="notebook")
@@ -289,6 +374,7 @@ def main():
     plot_route_stops(boardings)
     analyze_peak_hour_factors(boardings, hourly_counts)
     export_route_driver_info(boardings)
+    analyze_service_performance(boardings)
 
 
 if __name__ == "__main__":
