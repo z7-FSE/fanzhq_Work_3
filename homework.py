@@ -14,6 +14,18 @@ import seaborn as sns
 
 PROJECT_DIR = Path(__file__).resolve().parent
 DATA_FILE = PROJECT_DIR / "ICData.csv"
+REQUIRED_COLUMNS = {
+    "交易类型",
+    "交易时间",
+    "交易卡号",
+    "刷卡类型",
+    "线路号",
+    "车辆编号",
+    "上车站点",
+    "下车站点",
+    "驾驶员编号",
+    "运营公司编号",
+}
 
 
 def print_task_title(number, title):
@@ -27,8 +39,15 @@ def load_and_preprocess(csv_path=DATA_FILE):
     """读取 IC 卡数据，完成时间解析、衍生字段构造和异常值清理。"""
     print_task_title(1, "数据预处理")
 
+    csv_path = Path(csv_path)
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"未找到数据文件：{csv_path}")
+
     # 使用 utf-8-sig 自动处理 CSV 表头可能带有的 BOM 字符。
     df = pd.read_csv(csv_path, encoding="utf-8-sig")
+    missing_columns = sorted(REQUIRED_COLUMNS.difference(df.columns))
+    if missing_columns:
+        raise ValueError("数据文件缺少必要列：" + "、".join(missing_columns))
 
     print("数据集前5行：")
     print(df.head().to_string(index=False))
@@ -165,7 +184,7 @@ def plot_route_stops(boardings):
         estimator=np.mean,
         capsize=0.3,
         palette="Blues_d",
-        legend=False,
+        dodge=False,
         ax=ax,
     )
     try:
@@ -174,6 +193,9 @@ def plot_route_stops(boardings):
     except (TypeError, AttributeError):
         # 兼容 seaborn 0.11 及更早版本的 ci 参数写法。
         sns.barplot(**barplot_options, ci="sd")
+    legend = ax.get_legend()
+    if legend is not None:
+        legend.remove()
 
     ax.set_title("Top 15 Routes by Average Ride Stops", fontsize=15, pad=12)
     ax.set_xlabel("Average Number of Ride Stops")
@@ -257,6 +279,13 @@ def export_route_driver_info(boardings):
     print_task_title(5, "线路驾驶员信息批量导出")
     output_dir = PROJECT_DIR / "线路驾驶员信息"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 先清理上一次运行留下的 txt，避免旧线路文件混入本次结果。
+    stale_files = list(output_dir.glob("*.txt"))
+    for stale_file in stale_files:
+        stale_file.unlink()
+    if stale_files:
+        print(f"已清理上次运行的 {len(stale_files)} 个旧文件。")
 
     generated_paths = []
     for route_number in range(1101, 1121):
