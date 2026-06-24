@@ -22,7 +22,6 @@ python homework.py
 - `route_stops.png`
 - `performance_heatmap.png`
 - `线路驾驶员信息/1101.txt` 至 `线路驾驶员信息/1120.txt`
-- `运行结果记录.txt`
 
 ## 1. 任务拆解与 AI 协作策略
 
