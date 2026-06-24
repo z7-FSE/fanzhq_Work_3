@@ -1,6 +1,6 @@
 # 范哲齐-25361077-第三次人工智能编程作业
 
-仓库链接: https://github.com/z7-FSE/fanzhq_Work3.git
+仓库链接: https://github.com/z7-FSE/fanzhq_Work_3.git
 
 ## 项目说明
 
